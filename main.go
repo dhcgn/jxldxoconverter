@@ -2,8 +2,10 @@ package main
 
 import (
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -21,9 +23,22 @@ var (
 	usage string
 )
 
+type config struct {
+	FileFormatSettings []FileFormatSetting `json:"file_formats"`
+}
+
+type FileFormatSetting struct {
+	Extension        string `json:"extension"`
+	Quality          int    `json:"quality"`
+	Effort           int    `json:"effort"`
+	DeleteSourceFile bool   `json:"delete_source_file"`
+	Comment          string `json:"comment"`
+}
+
 func main() {
 	rootDir := filepath.Dir(os.Args[0])
 	setupLogger(rootDir)
+	c := getConfig(rootDir)
 
 	if len(os.Args) == 1 || len(os.Args) == 2 && (os.Args[1] == "--help" || os.Args[1] == "-h") {
 		fmt.Println(usage)
@@ -40,11 +55,48 @@ func main() {
 	sourceFiles := os.Args[1:]
 
 	for _, sourceFile := range sourceFiles {
-		convertFile(sourceFile, workingDir)
+		convertFile(sourceFile, workingDir, c)
 	}
 }
 
-func convertFile(sourceFile, workingDir string) {
+func getConfig(rootDir string) config {
+	configPath := filepath.Join(rootDir, "config.json")
+	if !exists(configPath) {
+		j, _ := json.MarshalIndent(config{
+			FileFormatSettings: []FileFormatSetting{
+				{
+					Extension:        "tif",
+					Quality:          99,
+					Effort:           8,
+					DeleteSourceFile: true,
+					Comment:          "tif files are created from dxo for this export, so they can be deleted afterwards. Effort 99 is best quality after loseless.",
+				},
+				{
+					Extension: "jpg|jpeg",
+					Comment:   "Use defaults of JPEG XL encoder, JPGs will be converted to JXL LOSSLESS. No generation loss!",
+				},
+			},
+		}, "", "  ")
+		err := ioutil.WriteFile(configPath, j, 0644)
+		if err != nil {
+			log.Error(err)
+		}
+	}
+
+	data, err := ioutil.ReadFile(configPath)
+	if err != nil {
+		log.Error(err)
+	}
+
+	var c config
+	err = json.Unmarshal(data, &c)
+	if err != nil {
+		log.Error(err)
+	}
+	return c
+}
+
+func convertFile(sourceFile, workingDir string, c config) {
 	fi, err := os.Stat(sourceFile)
 	if os.IsNotExist(err) {
 		log.Printf("%v file does not exist\n", sourceFile)
