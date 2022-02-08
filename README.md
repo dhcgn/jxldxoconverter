@@ -2,7 +2,7 @@
 
 # jxl dxo converter
 
-> Don't use yet, this is a dirty prototyp! 
+> Use only if you understand what will happened.
 
 ## Why?
 
