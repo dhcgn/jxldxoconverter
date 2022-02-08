@@ -1,18 +1,20 @@
 {
   "file_formats": [
     {
-      "extension": "tif",
-      "quality": 99,
+      "extension": "tif|tiff",
+      "quality": 95,
       "effort": 8,
       "delete_source_file": true,
-      "comment": "tif files are created from dxo for this export, so they can be deleted afterwards. Effort 99 is best quality after loseless."
+      "comment": "tif files are created from dxo for this export, so they can be deleted afterwards. Effort 99 is best quality after loseless.",
+      "default_config": false
     },
     {
       "extension": "jpg|jpeg",
       "quality": 0,
       "effort": 0,
       "delete_source_file": false,
-      "comment": "Use defaults of JPEG XL encoder, JPGs will be converted to JXL LOSSLESS. No generation loss!"
+      "comment": "Use defaults of JPEG XL encoder, JPGs will be converted to JXL LOSSLESS. No generation loss!",
+      "default_config": true
     }
   ]
 }

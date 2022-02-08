@@ -2,14 +2,14 @@ package main
 
 import (
 	_ "embed"
-	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/dhcgn/jxldxoconverter/config"
+	"github.com/dhcgn/jxldxoconverter/helper"
 	"github.com/dhcgn/jxldxoconverter/jxlhandler"
 	"github.com/dhcgn/jxldxoconverter/magickhandler"
 	"github.com/mattn/go-colorable"
@@ -21,24 +21,16 @@ var (
 
 	//go:embed usage.txt
 	usage string
+
+	version = "0.0.1"
 )
 
-type config struct {
-	FileFormatSettings []FileFormatSetting `json:"file_formats"`
-}
-
-type FileFormatSetting struct {
-	Extension        string `json:"extension"`
-	Quality          int    `json:"quality"`
-	Effort           int    `json:"effort"`
-	DeleteSourceFile bool   `json:"delete_source_file"`
-	Comment          string `json:"comment"`
-}
-
 func main() {
+	fmt.Println("jxl dxo converter", version)
+
 	rootDir := filepath.Dir(os.Args[0])
 	setupLogger(rootDir)
-	c := getConfig(rootDir)
+	c := config.GetConfig(rootDir)
 
 	if len(os.Args) == 1 || len(os.Args) == 2 && (os.Args[1] == "--help" || os.Args[1] == "-h") {
 		fmt.Println(usage)
@@ -51,52 +43,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	log.WithFields(logrus.Fields{"images": len(os.Args) - 1}).Info("Started")
+
 	workingDir := createWorkingDir(rootDir)
 	sourceFiles := os.Args[1:]
 
 	for _, sourceFile := range sourceFiles {
-		convertFile(sourceFile, workingDir, c)
+		ffs := c.GetFileFormatSetting(sourceFile)
+		convertFile(sourceFile, workingDir, ffs)
 	}
 }
 
-func getConfig(rootDir string) config {
-	configPath := filepath.Join(rootDir, "config.json")
-	if !exists(configPath) {
-		j, _ := json.MarshalIndent(config{
-			FileFormatSettings: []FileFormatSetting{
-				{
-					Extension:        "tif",
-					Quality:          99,
-					Effort:           8,
-					DeleteSourceFile: true,
-					Comment:          "tif files are created from dxo for this export, so they can be deleted afterwards. Effort 99 is best quality after loseless.",
-				},
-				{
-					Extension: "jpg|jpeg",
-					Comment:   "Use defaults of JPEG XL encoder, JPGs will be converted to JXL LOSSLESS. No generation loss!",
-				},
-			},
-		}, "", "  ")
-		err := ioutil.WriteFile(configPath, j, 0644)
-		if err != nil {
-			log.Error(err)
-		}
-	}
-
-	data, err := ioutil.ReadFile(configPath)
-	if err != nil {
-		log.Error(err)
-	}
-
-	var c config
-	err = json.Unmarshal(data, &c)
-	if err != nil {
-		log.Error(err)
-	}
-	return c
-}
-
-func convertFile(sourceFile, workingDir string, c config) {
+func convertFile(sourceFile, workingDir string, ffs config.FileFormatSetting) {
 	fi, err := os.Stat(sourceFile)
 	if os.IsNotExist(err) {
 		log.Printf("%v file does not exist\n", sourceFile)
@@ -105,7 +63,7 @@ func convertFile(sourceFile, workingDir string, c config) {
 
 	targetFolder := createTargetFolder(sourceFile)
 
-	log.WithFields(logrus.Fields{"source": sourceFile, "target": targetFolder, "size": ByteCountSI(fi.Size())}).Info("Converting")
+	log.WithFields(logrus.Fields{"source": sourceFile, "target": targetFolder, "size": helper.ByteCountSI(fi.Size())}).Info("Converting")
 
 	input := sourceFile
 	compatible := jxlhandler.IsCompatible(sourceFile)
@@ -116,11 +74,11 @@ func convertFile(sourceFile, workingDir string, c config) {
 	}
 
 	output := filepath.Join(targetFolder, fmt.Sprintf("%v.jxl", filepath.Base(sourceFile)))
-	if exists(output) {
+	if helper.Exists(output) {
 		output = filepath.Join(targetFolder, fmt.Sprintf("%v_%v.jxl", filepath.Base(sourceFile), time.Now().Unix()))
 	}
 
-	jxlhandler.ConvertToJxl(input, output, workingDir, log.WithField("context", "jxl"))
+	jxlhandler.ConvertToJxl(input, output, workingDir, ffs, log.WithField("context", "jxl"))
 
 	fiNew, err := os.Stat(output)
 	if os.IsNotExist(err) {
@@ -128,7 +86,7 @@ func convertFile(sourceFile, workingDir string, c config) {
 		return
 	}
 
-	log.WithFields(logrus.Fields{"target": output, "new_size": ByteCountSI(fiNew.Size()), "saved": ByteCountSI(fi.Size() - fiNew.Size())}).Info("Converted")
+	log.WithFields(logrus.Fields{"target": output, "new_size": helper.ByteCountSI(fiNew.Size()), "saved": helper.ByteCountSI(fi.Size() - fiNew.Size())}).Info("Converted")
 
 	if !compatible {
 		l := log.WithFields(logrus.Fields{"temp_file": input})
@@ -138,33 +96,20 @@ func convertFile(sourceFile, workingDir string, c config) {
 			l.Errorf("Error: %v", err)
 		}
 	}
-}
 
-func exists(filePath string) bool {
-	_, err := os.Stat(filePath)
-	if os.IsNotExist(err) {
-		return false
+	if !ffs.DefaultConfig && ffs.DeleteSourceFile {
+		l := log.WithFields(logrus.Fields{"input_file": sourceFile})
+		l.Println("Removing")
+		err := os.Remove(sourceFile)
+		if err != nil {
+			l.Errorf("Error: %v", err)
+		}
 	}
-	return true
-}
-
-func ByteCountSI(b int64) string {
-	const unit = 1000
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB",
-		float64(b)/float64(div), "kMGTPE"[exp])
 }
 
 func createWorkingDir(rootDir string) string {
 	workingDir := filepath.Join(rootDir, "temp")
-	if !exists(workingDir) {
+	if !helper.Exists(workingDir) {
 		err := os.Mkdir(workingDir, 0755)
 		if err != nil {
 			log.Println("Error: ", err)
@@ -175,7 +120,7 @@ func createWorkingDir(rootDir string) string {
 
 func createTargetFolder(sourceFile string) string {
 	targetFolder := filepath.Join(filepath.Dir(sourceFile), `jxl\`)
-	if !exists(targetFolder) {
+	if !helper.Exists(targetFolder) {
 		err := os.Mkdir(targetFolder, 0755)
 		if err != nil {
 			log.Errorf("Error: %v", err)

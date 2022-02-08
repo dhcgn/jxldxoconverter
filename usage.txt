@@ -3,5 +3,7 @@ https://github.com/dhcgn/jxldxoconverter
 
 Input: file names of images which will be converted to jxl in a sub dir "jxl" of the input file
 
+First start will create a config.json next to the executable.
+
 This software uses JPEG XL (libjxl) https://github.com/libjxl/libjxl/blob/main/LICENSE
 This software uses Image Magick https://github.com/ImageMagick/ImageMagick/blob/main/LICENSE
