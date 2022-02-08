@@ -1,3 +1,5 @@
+[![Go](https://github.com/dhcgn/jxldxoconverter/actions/workflows/go.yml/badge.svg)](https://github.com/dhcgn/jxldxoconverter/actions/workflows/go.yml)
+
 # jxl dxo converter
 
 > Don't use yet, this is a dirty prototyp! 
