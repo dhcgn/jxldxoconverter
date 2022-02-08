@@ -4,7 +4,7 @@
 
 ## Why?
 
-JXL is an excellent format for pictures, but DXO Optics Pro provides only JPEG, DNG and TIFF.
+JXL is an excellent format for pictures, but DXO Optics Pro provides only JPEG, DNG and TIFF. This applications brings JXL support to DXO Optics Pro.
 
 ## Workflow
 
