@@ -56,7 +56,7 @@ func main() {
 			continue
 		}
 
-		fmt.Println("New Size", ByteCountSI(fiNew.Size()), "Diff", ByteCountSI(fi.Size()-fiNew.Size()))
+		fmt.Println("New Size", ByteCountSI(fiNew.Size()), "saved", ByteCountSI(fi.Size()-fiNew.Size()))
 
 		if !compatible {
 			fmt.Println("Remove temp file", input)
