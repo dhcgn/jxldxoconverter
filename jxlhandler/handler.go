@@ -2,12 +2,13 @@ package jxlhandler
 
 import (
 	_ "embed"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -27,20 +28,22 @@ func IsCompatible(path string) bool {
 	return compatible
 }
 
-func ConvertToJxl(input, output, workingDir string) {
+func ConvertToJxl(input, output, workingDir string, log *log.Entry) {
 	cjxlTempPath := filepath.Join(workingDir, "cjxl.exe")
 	fi, err := os.Stat(cjxlTempPath)
 	if os.IsNotExist(err) || fi.Size() != int64(len(cjxl_executable_data)) {
-		fmt.Println("Writing cjxl.exe")
+		log.Println("Writing cjxl.exe")
 		os.WriteFile(cjxlTempPath, cjxl_executable_data, 0644)
 	}
 
 	start := time.Now()
 	cmd := exec.Command(cjxlTempPath, input, output)
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
+	w := log.Writer()
+	defer w.Close()
+	cmd.Stderr = w
+	cmd.Stdout = w
 	if err := cmd.Run(); err != nil {
-		fmt.Println("Error: ", err)
+		log.Println("Error: ", err)
 	}
-	fmt.Println("Convert to jxl in", time.Since(start))
+	log.Println("Convert to jxl in", time.Since(start))
 }

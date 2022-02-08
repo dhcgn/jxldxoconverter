@@ -2,7 +2,6 @@ package magickhandler
 
 import (
 	_ "embed"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,16 +9,17 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 )
 
 //go:embed ..\assets\magick.exe
 var magick_executable_data []byte
 
-func ConvertToPng(source, workingDir string) string {
+func ConvertToPng(source, workingDir string, log *log.Entry) string {
 	magickTempPath := filepath.Join(workingDir, "magick.exe")
 	fi, err := os.Stat(magickTempPath)
 	if os.IsNotExist(err) || fi.Size() != int64(len(magick_executable_data)) {
-		fmt.Println("Writing magick_temp.exe")
+		log.Println("Writing magick_temp.exe")
 		os.WriteFile(magickTempPath, magick_executable_data, 0644)
 	}
 
@@ -28,14 +28,18 @@ func ConvertToPng(source, workingDir string) string {
 	newFile = filepath.Join(workingDir, newFile)
 	start := time.Now()
 	cmd := exec.Command(magickTempPath, "convert", source, newFile)
+	w := log.Writer()
+	defer w.Close()
+	cmd.Stderr = w
+	cmd.Stdout = w
 	if err := cmd.Run(); err != nil {
-		fmt.Println("Error: ", err)
+		log.Println("Error: ", err)
 	}
-	fmt.Println("Convert to png in", time.Since(start), "to", newFile)
+	log.Println("Convert to png in", time.Since(start), "to", newFile)
 
 	files, err := filepath.Glob(strings.TrimSuffix(newFile, ext) + "*")
 	if err != nil {
-		fmt.Println("Error: ", err)
+		log.Println("Error: ", err)
 	}
 
 	for _, f := range files[1:] {
